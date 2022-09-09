@@ -1,8 +1,8 @@
-#SnapTools
+# SnapTools
 
 Bespoke tools for working with isolated galaxy snapshots produced by Gadget and GIZMO. Based on code developed by Steven Pardy.
 
-#Installation
+# Installation
 
 SnapTools requires several common python packages (tested versions in parentheses):
 
