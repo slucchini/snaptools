@@ -3,7 +3,6 @@ from builtins import range  # overload range to ensure python3 style
 from six import iteritems
 from . import utils
 from . import combine_gals as cg
-from scipy.signal import argrelextrema
 import astropy.units as u
 import astropy.constants as constants
 import pNbody as pnb, numpy as np, os

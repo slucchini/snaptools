@@ -1,7 +1,6 @@
 from __future__ import print_function, absolute_import, division
 from builtins import range  # overload range to ensure python3 style
 from six import iteritems
-import sys
 import numpy as np
 from tempfile import mkstemp
 from shutil import move, copy

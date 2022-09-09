@@ -6,7 +6,7 @@ from . import utils
 from . import snapshot
 from . import compute_positions as cp
 from multiprocess import Pool
-import itertools, numpy as np, re, h5py
+import numpy as np, re, h5py
 from astropy.coordinates import SkyCoord,Galactocentric
 import astropy.units as u
 from .magellanicstream import MagellanicStream as MScoord

@@ -1,6 +1,6 @@
 import numpy as np
 # import matplotlib as mpl, matplotlib.pyplot as plt
-from snaptools import snapshot
+from . import snapshot
 import astropy.units as u
 from astropy import constants
 
