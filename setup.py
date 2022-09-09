@@ -9,10 +9,11 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-    # install_requires=[
-    #     "matplotlib >= 3.3.4",
-    #     "numpy >= 1.20.1",
-    #     "astropy >= 4.2",
-    #     "h5py >= 2.8.0"
-    # ]
+    install_requires=[
+        "astropy >= 5.0",
+        "h5py >= 3.6.0",
+        "multiprocess >= 0.70.12.2",
+        "matplotlib >= 3.5.1",
+        "numpy >= 1.20.1",
+    ]
 )
