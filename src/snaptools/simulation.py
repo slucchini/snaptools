@@ -121,6 +121,9 @@ class Simulation(object):
 
         return t0index
 
+    def has_computed_positions(self):
+        return os.path.exists(self.folder+'/computed_positions.hdf5')
+
     def compute_positions(self,lmconly=False,overwrite=True,verbose=True):
         """
         Generates computed_positions.hdf5 file with LMC, SMC, and MW pos and vel at all sim times

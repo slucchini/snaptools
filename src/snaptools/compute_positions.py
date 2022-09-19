@@ -1,5 +1,5 @@
 import numpy as np, pNbody as pnb, datetime, os, h5py
-from snaptools import simulation, snapshot
+from . import simulation, snapshot
 from functools import partial
 
 def today():
@@ -78,7 +78,7 @@ def run(sim,lmconly,overwrite=True,verbose=False):
             lmc_mass, smc_mass = [snap.masses['halo'][g[0]] for g in gal_ids_halo]
     
     if (verbose):
-        print(mw_mass,lmc_mass,smc_mass)
+        print('MW:',mw_mass,'LMC:',lmc_mass,'SMC:',smc_mass)
     
     save_file = "{}computed_positions.hdf5".format(folder)
 
