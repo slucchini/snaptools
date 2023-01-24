@@ -5,12 +5,27 @@ from functools import partial
 def today():
     return datetime.date.today().strftime('%B%d')
 
+def find_pos(snapname, mass_arr=None):
+    
+    try:
+        snap = snapshot.Snapshot(snapname)
+    except:
+        raise Exception("Failure on snapshot: {}".format(snapname))
+
+    gal_ids = snap.split_galaxies('stars', mass_list=mass_arr)
+    output = []
+    for g in gal_ids:
+        output.append(snap.pos['stars'][g].mean(axis=0))
+        output.append(snap.vel['stars'][g].mean(axis=0))
+    output.append(snap.header['time'])
+    return output
+
 def find_pos_pot(snapname, mass_arr=None):
     
     try:
         snap = snapshot.Snapshot(snapname)
     except:
-        raise RuntimeException("Failure on snapshot: {}".format(snapname))
+        raise Exception("Failure on snapshot: {}".format(snapname))
     
     pt = 'halo'
     gal_ids = snap.split_galaxies(pt,mass_list=mass_arr)
@@ -65,33 +80,53 @@ def run(sim,lmconly,overwrite=True,verbose=False):
 
     snap = sim.get_snapshot(0)
 
-    gal_ids_halo = snap.split_galaxies('halo')
     mw_mass = 0
     lmc_mass = 0
     smc_mass = 0
-    if (len(gal_ids_halo) >= 3):
-        mw_mass, lmc_mass, smc_mass = [snap.masses['halo'][g[0]] for g in gal_ids_halo[:3]]
-    if (len(gal_ids_halo) == 2):
+
+    if ('halo' in snap.pos.keys()):
+        ptype = 'halo'
+    elif ('stars' in snap.pos.keys()):
+        ptype = 'stars'
+    else:
+        raise Exception("No DM particles or stellar particles. Can't track positions.")
+    
+    gal_ids = np.array(snap.split_galaxies(ptype),dtype='object')
+    gal_ids = gal_ids[[len(g) > 100 for g in gal_ids]]
+    if (len(gal_ids) >= 3):
+        mw_mass, lmc_mass, smc_mass = [snap.masses[ptype][g[0]] for g in gal_ids[:3]]
+    elif (len(gal_ids) == 2):
         if (lmconly):
-            mw_mass, lmc_mass = [snap.masses['halo'][g[0]] for g in gal_ids_halo]
+            mw_mass, lmc_mass = [snap.masses[ptype][g[0]] for g in gal_ids]
         else:
-            lmc_mass, smc_mass = [snap.masses['halo'][g[0]] for g in gal_ids_halo]
-    
+            lmc_mass, smc_mass = [snap.masses[ptype][g[0]] for g in gal_ids]
+    elif (len(gal_ids) == 1):
+        if (lmconly):
+            lmc_mass = snap.masses[ptype][gal_ids[0][0]]
+        else:
+            raise Exception("SMC only not implemented...")
+
     if (verbose):
+        print("Using {}".format(ptype))
         print('MW:',mw_mass,'LMC:',lmc_mass,'SMC:',smc_mass)
-    
+
     save_file = "{}computed_positions.hdf5".format(folder)
 
     sim = simulation.Simulation(folder)
 
-    if (lmconly):
+    if (lmconly and (mw_mass != 0)):
         marr = [lmc_mass,mw_mass]
+    elif (lmconly):
+        marr = [lmc_mass]
     else:
         marr = [lmc_mass,smc_mass]
         if (mw_mass != 0):
             marr = [lmc_mass,smc_mass,mw_mass]
 
-    _find_pos = partial(find_pos_pot, mass_arr=marr)
+    if (ptype == 'halo'):
+        _find_pos = partial(find_pos_pot, mass_arr=marr)
+    elif (ptype == 'stars'):
+        _find_pos = partial(find_pos, mass_arr=marr)
 
     # only run the rest of the analysis if we need to
     if not os.path.isfile(save_file) or overwrite:  # if the file doesn't exist or if we want to overwrite the files
@@ -111,15 +146,16 @@ def run(sim,lmconly,overwrite=True,verbose=False):
         for j, p in enumerate(positions_stars):
             lmc_pos[j, :] = p[0]
             lmc_vel[j, :] = p[1]
-            if (lmconly):
-                mw_pos[j,:] = p[2]
-                mw_vel[j,:] = p[3]
-            else:
-                smc_pos[j, :] = p[2]
-                smc_vel[j, :] = p[3]
-                if (len(marr) > 2):
-                    mw_pos[j, :] = p[4]
-                    mw_vel[j, :] = p[5]
+            if (len(marr) > 1):
+                if (lmconly):
+                    mw_pos[j,:] = p[2]
+                    mw_vel[j,:] = p[3]
+                else:
+                    smc_pos[j, :] = p[2]
+                    smc_vel[j, :] = p[3]
+                    if (len(marr) > 2):
+                        mw_pos[j, :] = p[4]
+                        mw_vel[j, :] = p[5]
             times[j] = p[-1]
 
         # save to disk
