@@ -290,7 +290,56 @@ class Snapshot(object):
 
         return mlims
 
-    def plot_components(self,ptype,plot_size=800,xy=[1,2],mlims=None,uses0=True):
+    def get_components(self,ptype,uses0=True):
+        basepath = os.path.dirname(self.filename)+"/"
+        if (uses0):
+            try:
+                s0 = Snapshot(basepath+"snapshot_000.hdf5")
+            except:
+                print("Warn: Unable to load snapshot_000")
+                s0 = None
+        else:
+            s0 = None
+
+        if (len(np.unique(self.masses[ptype])) < 10):
+            gal_ids0 = np.array(self.split_galaxies(ptype),dtype='object')
+            if (len(gal_ids0) == 1):
+                gal_ids0 = gal_ids0.astype(int)
+
+            return gal_ids0
+        else:
+            n,bins = np.histogram(np.log10(self.masses[ptype]),bins=100)
+            if ((s0 is not None) and (ptype in s0.masses.keys())):
+                n0,bins0 = np.histogram(np.log10(s0.masses[ptype]),bins=100)
+            else:
+                n0 = n
+                bins0 = bins
+            
+            # max0 = bins0[argrelextrema(n0, np.greater)[0]]
+            # mins = bins[argrelextrema(n, np.less)[0]]
+            max0 = np.where((np.roll(n0,1) <= n0) & (np.roll(n0,-1) <= n0) == True)[0]
+            if max0[0] == 0:
+                max0 = max0[1:]
+            if max0[-1] == len(n0)-1:
+                max0 = max0[:-1]
+            mins = np.where((np.roll(n,1) >= n) & (np.roll(n,-1) >= n) == True)[0]
+            max0 = bins0[max0]
+            mins = bins[mins]
+            mlims = [bins[0]-0.1]
+            for i,m in enumerate(max0):
+                if (mins[0] > m):
+                    continue
+                mask = np.where((bins > mlims[-1]) & (bins < mins[mins < m][-1]))
+                if ((len(mask) == 0) | (np.sum(n[mask]) < 100)):
+                    continue
+                mlims.append(mins[mins < m][-1])
+            mlims.append(mins[mins < bins0[-1]][-1])
+            mlims.append(bins[-1]+0.1)
+            mlims = np.array(mlims)
+
+            return mlims
+
+    def plot_components(self,ptype,plot=True,plot_size=800,xy=[1,2],mlims=None,uses0=True):
         basepath = os.path.dirname(self.filename)+"/"
         if (uses0):
             try:
@@ -348,6 +397,7 @@ class Snapshot(object):
                 mlims.append(mins[mins < bins0[-1]][-1])
                 mlims.append(bins[-1]+0.1)
                 mlims = np.array(mlims)
+            
             for ml in mlims:
                 plt.axvline(ml,c='k',alpha=0.5,ls='--',lw=0.7)
             plt.show()

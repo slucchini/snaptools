@@ -279,7 +279,8 @@ class SnapHDF5(Snapshot):
         """
         self.settings = utils.make_settings(**kwargs)
         self.bin_dict = None
-        self.filename = fname
+        self.filename = os.path.abspath(fname)
+        self.folder = os.path.dirname(fname)+"/"
 
         with h5py.File(fname, 'r') as s:
             self.header = {}
