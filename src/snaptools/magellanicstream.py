@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import numpy as np
 
 from astropy.coordinates import frame_transform_graph
-from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_product, matrix_transpose
+from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_transpose
 import astropy.coordinates as coord, astropy.units as u
 from astropy.io import fits
 from astropy import wcs
@@ -106,7 +106,7 @@ D = rotation_matrix(MS_PHI, "z")
 C = rotation_matrix(MS_THETA, "x")
 B = rotation_matrix(MS_PSI, "z")
 A = np.diag([1., 1., 1.])
-MS_MATRIX = matrix_product(A, B, C, D)
+MS_MATRIX = A @ B @ C @ D
 
 @frame_transform_graph.transform(coord.StaticMatrixTransform, coord.Galactic, MagellanicStream)
 def galactic_to_MS():
