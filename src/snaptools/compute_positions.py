@@ -164,4 +164,24 @@ def run(sim,lmconly,overwrite=True,verbose=False):
 
     if (verbose):
         print("Saved to: {}".format(save_file))
-        print("Present Day = snapshot_{:03}".format(sim.present_day()))
+        try:
+            print("Present Day = snapshot_{:03}".format(sim.present_day()))
+        except:
+            print("Doesn't reach present day position.")
+
+def get_computed_positions(sim,mw=True,lmc=True,smc=True,times=True):
+    output = []
+    with h5py.File('{:s}/computed_positions.hdf5'.format(sim.folder),'r') as f:
+        if mw:
+            output.append(f['Disk/mw_pos'][:])
+            output.append(f['Disk/mw_vel'][:])
+        if lmc:
+            output.append(f['Disk/lmc_pos'][:])
+            output.append(f['Disk/lmc_vel'][:])
+        if smc:
+            output.append(f['Disk/smc_pos'][:])
+            output.append(f['Disk/smc_vel'][:])
+        if times:
+            output.append(f['Disk/time'][:])
+    
+    return output

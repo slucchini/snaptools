@@ -117,6 +117,8 @@ def transform_coords(pos, vel=None, return_coord="magellanic", return_vel=False)
     if (np.ndim(pos) == 1):
         inputndim = 1
         pos = np.array([pos])
+        if (vel is not None):
+            vel = np.array([vel])
 
     if (vel is None):
         if (return_vel):
@@ -127,6 +129,7 @@ def transform_coords(pos, vel=None, return_coord="magellanic", return_vel=False)
 
     if (inputndim == 1):
         coords = coords[0]
+        radial_vel = radial_vel[0]
     if return_vel:
         return coords, radial_vel
     else:

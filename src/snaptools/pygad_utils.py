@@ -14,7 +14,8 @@ def loadSnap(snapName,snapbase="snapshot",outfolder="output",datadrive=3):
     splitName = snapName.split('-')
     galaxies = splitName[0][:-2]
     sim_type = splitName[0][-2:]
-    run = int(splitName[1])
+    # run = int(splitName[1])
+    run = splitName[1]
     snum = int(splitName[2])
 
     if (sim_type == "01"):
@@ -36,14 +37,19 @@ def loadSnap(snapName,snapbase="snapshot",outfolder="output",datadrive=3):
         galaxies = "Second_Passage"
     elif (galaxies == "DI"):
         galaxies = "Direct_Infall"
+    elif (galaxies == "B"):
+        galaxies = "Batch"
     else:
         raise Exception("Unrecognized simulation category {}".format(galaxies))
 
     while (datadrive > 0):
         snappath = "/Volumes/LucchiniResearchData{0}/HPC_Backup/home/working/{1}/{2}/{2}_run{3}/{4}/{5}_{6:03}.hdf5".format(datadrive,sim_type,galaxies,run,outfolder,snapbase,snum)
-
         if (os.path.exists(snappath)):
-            return pg.Snap(snappath)
+            return pg.Snapshot(snappath)
+        snappath = "/Volumes/LucchiniResearchData{0}/HPC_Backup/scratch/{1}/{2}/{2}_run{3}/{4}/{5}_{6:03}.hdf5".format(datadrive,sim_type,galaxies,run,outfolder,snapbase,snum)
+        if (os.path.exists(snappath)):
+            return pg.Snapshot(snappath)
+
         datadrive -= 1
 
     raise Exception("Snap not found on any data drives attached: {}".format(snappath))
@@ -146,6 +152,49 @@ def get_show_ids_old(s,show='all',sl=None,verbose=False):
     show_ids = np.int_(show_ids)
 
     return show_ids
+
+def get_components(sub,mlims=None):
+    basepath = os.path.dirname(sub.filename)+"/"
+    try:
+        s0 = pg.Snap(basepath+"snapshot_000.hdf5")
+    except:
+        s0 = None
+
+    if (len(np.unique(sub['mass'])) < 10):
+        gal_ids0 = np.array(split_galaxies(sub))
+
+        return gal_ids0
+    else:
+        n,bins = np.histogram(np.log10(sub['mass']),bins=100)
+        # if ((s0 is not None) and (ptype in s0.masses.keys())):
+        #     n0,bins0,_ = plt.hist(np.log10(s0.gas['mass']),bins=100,alpha=0.5)
+        # else:
+        n0 = n
+        bins0 = bins
+        if (mlims is None):
+            # max0 = bins0[argrelextrema(n0, np.greater)[0]]
+            # mins = bins[argrelextrema(n, np.less)[0]]
+            max0 = np.where((np.roll(n0,1) <= n0) & (np.roll(n0,-1) <= n0) == True)[0]
+            if max0[0] == 0:
+                max0 = max0[1:]
+            if max0[-1] == len(n0)-1:
+                max0 = max0[:-1]
+            mins = np.where((np.roll(n,1) >= n) & (np.roll(n,-1) >= n) == True)[0]
+            max0 = bins0[max0]
+            mins = bins[mins]
+            mlims = [bins[0]-0.1]
+            for i,m in enumerate(max0):
+                if (mins[0] > m):
+                    continue
+                mask = np.where((bins > mlims[-1]) & (bins < mins[mins < m][-1]))
+                if ((len(mask) == 0) | (np.sum(n[mask]) < 100)):
+                    continue
+                mlims.append(mins[mins < m][-1])
+            mlims.append(mins[mins < bins0[-1]][-1])
+            mlims.append(bins[-1]+0.1)
+            mlims = np.array(mlims)
+
+        return mlims
 
 def plot_components(sub,mlims=None,plot_size=800,xy=[1,2]):
     basepath = os.path.dirname(sub.filename)+"/"
@@ -256,7 +305,7 @@ def gas_temp(s):
 
     return temp
 
-def _prep_snap(s, x, y, r, lsr_vels=None, show='mcs', min_dist=0, max_dist=None, min_vel=0, max_pix_dist=None, ne='all', temp='all', temp_cutoff=2e4):
+def _prep_snap(s, x, y, r, lsr_vels=None, show='mcs', min_dist=0, max_dist=None, min_vel=0, max_pix_dist=None, ne='all', temp='all', temp_cutoff=2e4, qty=None, custommask=None):
     gaspos = np.zeros((len(x),3))
     gaspos[:,0] = x
     gaspos[:,1] = y
@@ -267,7 +316,10 @@ def _prep_snap(s, x, y, r, lsr_vels=None, show='mcs', min_dist=0, max_dist=None,
     show_ids = show
     if (isinstance(show_ids,str)):
         show_ids = get_show_ids(s,show=show)
-    mask = pg.ExprMask("r > '{} kpc'".format(min_dist))
+    if (custommask is not None):
+        mask = custommask & (pg.ExprMask("r > '{} kpc'".format(min_dist)))
+    else:
+        mask = pg.ExprMask("r > '{} kpc'".format(min_dist))
     if (max_dist is not None):
         mask = (mask) & (pg.ExprMask("z < '{} kpc'".format(max_dist)))
     if (lsr_vels is None) and (min_vel > 0):
@@ -281,41 +333,49 @@ def _prep_snap(s, x, y, r, lsr_vels=None, show='mcs', min_dist=0, max_dist=None,
     if (max_pix_dist is not None):
         delta = (max(x) - min(x))/2.
         s['pix_dist'] = pg.UnitArr(np.linalg.norm(list(zip(x-delta,y-delta)),axis=1), 'kpc')
-        mask2 = pg.ExprMask("pix_dist < '{} kpc'".format(max_pix_dist))
-        sub = s[show_ids][mask][mask2]
-    else:
-        sub = s[show_ids][mask]
+        mask = (mask) & pg.ExprMask("pix_dist < '{} kpc'".format(max_pix_dist))
+        
+    sub = s[show_ids] # [mask]
 
-    # if (ne == 'ionized'):
-    #     sub = sub[sub['nh'] < 0.5]
-    # elif (ne == 'neutral'):
-    #     sub = sub[sub['nh'] > 0.5]
+    if ((qty is not None) & (type(qty) != str)):
+        qty = qty[show_ids][sub._mask]
 
     if (temp != 'all'):
+        tmask = np.ones(len(sub))
         if (temp == 'hot'):
-            sub = sub[sub['temp'] > temp_cutoff]
+            tmask = sub['temp'] > temp_cutoff
         if (temp == 'cold'):
-            sub = sub[sub['temp'] < temp_cutoff]
+            tmask = sub['temp'] < temp_cutoff
+        sub = sub[tmask]
+        if ((qty is not None) & (type(qty) != str)):
+            qty = qty[tmask]
 
-    return sub
+    return sub,qty
 
-def get_data(s, x, y, r, extent, lsr_vels=None, Npx=500, show='mcs', min_dist=0, max_dist=None, min_vel=0, max_pix_dist=None, ne='all', temp='all', temp_cutoff=2e4):
+def get_data(s, x, y, r, extent, lsr_vels=None, Npx=500, show='mcs', min_dist=0, max_dist=None, min_vel=0, max_pix_dist=None, ne='all', temp='all', temp_cutoff=2e4, qty=None, custommask=None, units=None):
 
-    sub = _prep_snap(s, x, y, r, lsr_vels=lsr_vels, show=show, min_dist=min_dist, max_dist=max_dist, min_vel=min_vel, max_pix_dist=max_pix_dist, ne=ne, temp=temp, temp_cutoff=temp_cutoff)
+    sub,qty = _prep_snap(s, x, y, r, lsr_vels=lsr_vels, show=show, min_dist=min_dist, max_dist=max_dist, min_vel=min_vel, max_pix_dist=max_pix_dist, ne=ne, temp=temp, temp_cutoff=temp_cutoff, qty=qty, custommask=custommask)
 
-    units_dens = 'g/cm**2'
-    qty = 'rho'
-    if (ne == 'neutral'):
-        qty = 'rho*nh'
-    elif (ne == 'ionized'):
-        qty = 'rho*(1-nh)'
+    if (units is not None):
+        units_dens = units
+    else:
+        units_dens = 'g/cm**2'
+    if (qty is None):
+        if (ne == 'neutral'):
+            qty = 'rho*nh'
+        elif (ne == 'ionized'):
+            qty = 'rho*(1-nh)'
+        else:
+            qty = 'rho'
     m_dens = pg.binning.SPH_to_2Dgrid(sub, qty=qty, extent=extent, Npx=Npx, xaxis=1, yaxis=0)
+    # print(m_dens)
     # return sub
     m_dens = m_dens.in_units_of(pg.Unit(units_dens), subs=s)
     dens_data = np.log10(np.array(m_dens))
 
     # return sub
-    return dens_data
+    # return dens_data
+    return np.array(m_dens)
 
 def get_vel_data(s, x, y, r, v, extent, Npx=500, show='mcs', min_dist=0, max_pix_dist=None, ne='all'):
 
@@ -330,7 +390,7 @@ def get_vel_data(s, x, y, r, v, extent, Npx=500, show='mcs', min_dist=0, max_pix
     )
 
     s.gas['lsrvel'] = pg.UnitArr(v,'km/s')
-    sub = _prep_snap(s.gas, x, y, r, show=show, min_dist=min_dist, max_pix_dist=max_pix_dist, ne=ne)
+    sub = _prep_snap(s.gas, x, y, r, show=show, min_dist=min_dist, max_pix_dist=max_pix_dist, ne=ne)[0]
 
     units_vel = 'km/s'
     m_vel = pg.binning.map_qty(sub, qty='lsrvel', reduction='mean', **args)

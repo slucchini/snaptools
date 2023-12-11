@@ -4,8 +4,47 @@ import numpy as np
 
 from astropy.coordinates import frame_transform_graph
 from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_product, matrix_transpose
-import astropy.coordinates as coord
-import astropy.units as u
+import astropy.coordinates as coord, astropy.units as u
+from astropy.io import fits
+from astropy import wcs
+
+def getMagellanicWCS(xe,ye):
+    head = fits.PrimaryHDU().header
+    head['NAXIS1'] = len(xe)
+    head['NAXIS2'] = len(ye)
+    head['CRPIX1'] = len(xe)/2
+    head['CRPIX2'] = len(ye)/2
+    head['CDELT1'] = xe[1]-xe[0]
+    head['CDELT2'] = ye[1]-ye[0]
+    head['CUNIT1'] = 'deg'
+    head['CUNIT2'] = 'deg'
+    head['CRVAL1'] = (xe[0]+xe[-1])/2.0
+    head['CRVAL2'] = (ye[0]+ye[-1])/2.0
+
+    head['WCSAXES'] = 2
+    head['NAXIS'] = 2
+
+    return wcs.WCS(head)
+
+def getGalacticWCS(lmcloc,xe,ye):
+    head = fits.PrimaryHDU().header
+    head['CRPIX1'] = lmcloc[0]
+    head['CRPIX2'] = lmcloc[1]
+    head['CDELT1'] = xe[1]-xe[0]
+    head['CDELT2'] = ye[1]-ye[0]
+    head['CUNIT1'] = 'deg'
+    head['CUNIT2'] = 'deg'
+    head['CTYPE1'] = 'GLON-CYP'
+    head['CTYPE2'] = 'GLAT-CYP'
+    head['CRVAL1'] = 280.4652
+    head['CRVAL2'] = -32.75
+    head['LONPOLE'] = 123.3
+    head['LATPOLE'] = -800
+
+    head['WCSAXES'] = 2
+    head['NAXIS'] = 2
+
+    return wcs.WCS(head)
 
 class MagellanicStream(coord.BaseCoordinateFrame):
     """

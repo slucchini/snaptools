@@ -25,7 +25,7 @@ formatted as "{gals}{sim-type}-{run}-{snap}".
 """
 def loadSnap(info, snapbase="snapshot", outfolder="output", datadrive=3):
     base, run, snapnum = info.split("-")
-    run = int(run)
+    # run = int(run)
     snapnum = int(snapnum)
     gals = base[:-2]
     sim_type_num = base[-2:]
@@ -54,6 +54,8 @@ def loadSnap(info, snapbase="snapshot", outfolder="output", datadrive=3):
         category = "Second_Passage"
     elif (gals == "DI"):
         category = "Direct_Infall"
+    elif (gals == "B"):
+        category = "Batch"
     elif (gals == "CC"):
         category = "Cloud_Crushing"
         extra_path = "/runs"
@@ -65,7 +67,9 @@ def loadSnap(info, snapbase="snapshot", outfolder="output", datadrive=3):
 
     while (datadrive > 0):
         snappath = "/Volumes/LucchiniResearchData{0}/HPC_Backup/home/working/{1}/{2}{3}/{2}_run{4}/{5}/{6}_{7:03}.hdf5".format(datadrive,sim_type,category,extra_path,run,outfolder,snapbase,snapnum)
-
+        if (os.path.exists(snappath)):
+            return Snapshot(snappath)
+        snappath = "/Volumes/LucchiniResearchData{0}/HPC_Backup/scratch/{1}/{2}{3}/{2}_run{4}/{5}/{6}_{7:03}.hdf5".format(datadrive,sim_type,category,extra_path,run,outfolder,snapbase,snapnum)
         if (os.path.exists(snappath)):
             return Snapshot(snappath)
 
@@ -753,24 +757,24 @@ class Snapshot(object):
         Note: Must have matching header and data.
         Todo: Gracefully handle mismatches between header and data
         """
-        # A list of header attributes, their key names, and data types
+        # A list of header attributes, their key names, and data types, and default values
         head_attrs = {'npart': (np.int32, 'NumPart_ThisFile'),
                       'nall': (np.uint32, 'NumPart_Total'),
-                      'nall_highword': (np.uint32, 'NumPart_Total_HighWord'),
-                      'massarr': (np.float64, 'MassTable'),
-                      'time': (np.float64, 'Time'),
-                      'redshift': (np.float64, 'Redshift'),
+                      'nall_highword': (np.uint32, 'NumPart_Total_HighWord', [0,0,0,0,0,0]),
+                      'massarr': (np.float64, 'MassTable', [0,0,0,0,0,0]),
+                      'time': (np.float64, 'Time', 0.0),
+                      'redshift': (np.float64, 'Redshift', 1.0),
                       'boxsize': (np.float64, 'BoxSize'),
-                      'filenum': (np.int32, 'NumFilesPerSnapshot'),
-                      'omega0': (np.float64, 'Omega0'),
-                      'omega_l': (np.float64, 'OmegaLambda'),
-                      'hubble': (np.float64, 'HubbleParam'),
-                      'sfr': (np.int32, 'Flag_Sfr'),
-                      'cooling': (np.int32, 'Flag_Cooling'),
-                      'stellar_age': (np.int32, 'Flag_StellarAge'),
-                      'metals': (np.int32, 'Flag_Metals'),
-                      'feedback': (np.int32, 'Flag_Feedback'),
-                      'double': (np.int32, 'Flag_DoublePrecision')}
+                      'filenum': (np.int32, 'NumFilesPerSnapshot', 1),
+                      'omega0': (np.float64, 'Omega0', 1.0),
+                      'omega_l': (np.float64, 'OmegaLambda', 0.0),
+                      'hubble': (np.float64, 'HubbleParam', 1.0),
+                      'sfr': (np.int32, 'Flag_Sfr', True),
+                      'cooling': (np.int32, 'Flag_Cooling', True),
+                      'stellar_age': (np.int32, 'Flag_StellarAge', True),
+                      'metals': (np.int32, 'Flag_Metals', True),
+                      'feedback': (np.int32, 'Flag_Feedback', True),
+                      'double': (np.int32, 'Flag_DoublePrecision', True)}
         misc_datablocks = {"U": "InternalEnergy",
                            "RHO": "Density",
                            "VOL": "Volume",
@@ -809,6 +813,22 @@ class Snapshot(object):
                       'bulge',
                       'sfr',
                       'other']
+        for hval in head_attrs.keys():
+            if (hval not in self.header):
+                if (len(head_attrs[hval]) >= 3):
+                    self.header[hval] = head_attrs[hval][2]
+                else:
+                    print("Missing header value: {}".format(hval))
+                    return
+        
+        shift_ids = False
+        for pt in self.ids.keys():
+            if (0 in self.ids[pt]):
+                shift_ids = True
+        if (shift_ids):
+            for pt in self.ids.keys():
+                self.ids[pt] += 1
+        
         # Open the file
         with h5py.File(fname, 'w', userblock_size=userblock_size) as f:
             # First write the header
@@ -865,7 +885,7 @@ class Snapshot(object):
     snapData - dictionary of positions, velocities, and masses of all particles types
     """
     @staticmethod
-    def saveAsSnap(fname, snapData, userblock_size=0):
+    def saveAsSnap(fname, snapData, headerOverwrite=None, userblock_size=0):
         import h5py
         """
         Save a snapshot object to an hdf5 file.
@@ -954,6 +974,10 @@ class Snapshot(object):
                      'feedback': 1,
                      'double': 0,
                      'Flag_IC_Info': 0}
+        
+        if (headerOverwrite is not None):
+            for k in headerOverwrite.keys():
+                header[k] = headerOverwrite[k]
 
         # Open the file
         with h5py.File(fname, 'w', userblock_size=userblock_size) as f:

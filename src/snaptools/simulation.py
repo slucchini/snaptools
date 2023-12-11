@@ -1,7 +1,7 @@
 from __future__ import print_function, absolute_import, division
 from builtins import range  # overload range to ensure python3 style
 from six import iteritems
-import os
+import os, warnings
 from . import utils
 from . import snapshot
 from . import compute_positions as cp
@@ -26,7 +26,7 @@ def loadSim(info, snapbase="snapshot_", outfolder="output", datadrive=3):
         return Simulation(folder, snapbase=snapbase)
 
     base, run = info.split("-")
-    run = int(run)
+    # run = int(run)
     gals = base[:-2]
     sim_type_num = base[-2:]
 
@@ -54,6 +54,8 @@ def loadSim(info, snapbase="snapshot_", outfolder="output", datadrive=3):
         category = "Second_Passage"
     elif (gals == "DI"):
         category = "Direct_Infall"
+    elif (gals == "B"):
+        category = "Batch"
     elif (gals == "CC"):
         category = "Cloud_Crushing"
         extra_path = "/runs"
@@ -65,7 +67,9 @@ def loadSim(info, snapbase="snapshot_", outfolder="output", datadrive=3):
 
     while (datadrive > 0):
         folder = "/Volumes/LucchiniResearchData{0}/HPC_Backup/home/working/{1}/{2}{3}/{2}_run{4}/{5}/".format(datadrive,sim_type,category,extra_path,run,outfolder)
-
+        if (os.path.exists(folder)):
+            return Simulation(folder, snapbase=snapbase)
+        folder = "/Volumes/LucchiniResearchData{0}/HPC_Backup/scratch/{1}/{2}{3}/{2}_run{4}/{5}/".format(datadrive,sim_type,category,extra_path,run,outfolder)
         if (os.path.exists(folder)):
             return Simulation(folder, snapbase=snapbase)
         datadrive -= 1
@@ -99,7 +103,7 @@ class Simulation(object):
         self.nsnaps = len(self.snaps)
         self.settings = utils.make_settings()
 
-    def present_day(self):
+    def present_day(self,return_last=True):
         cpfile = self.folder+"/computed_positions.hdf5"
 
         if (not os.path.exists(cpfile)):
@@ -115,8 +119,13 @@ class Simulation(object):
         lmc_pos_mc[lmc_pos_mc > 180] -= 360
         lmc_dist = np.linalg.norm(lmc_pos,axis=1)
         t0index = np.where((lmc_pos_mc > -5) & (lmc_dist < 100))[0]
+        # t0index = np.argmin(np.abs(lmc_pos_mc))
         if (len(t0index) == 0):
-            raise Exception("Doesn't reach present day position")
+            if (return_last):
+                warnings.warn("Doesn't reach present day position. Returning last snap.")
+                return len(lmc_pos)-1
+            else:
+                raise Exception("Doesn't reach present day position.")
         t0index = t0index[0]
 
         return t0index
@@ -129,6 +138,12 @@ class Simulation(object):
         Generates computed_positions.hdf5 file with LMC, SMC, and MW pos and vel at all sim times
         """
         cp.run(self,lmconly=lmconly,overwrite=overwrite,verbose=verbose)
+
+    def get_computed_positions(self,mw=True,lmc=True,smc=True,times=True):
+        if (self.has_computed_positions()):
+            return cp.get_computed_positions(self,mw,lmc,smc,times)
+        else:
+            raise Exception("No computed postions file found.")
 
     def measure_centers_of_mass(self):
         """
@@ -152,7 +167,7 @@ class Simulation(object):
         """
         def centers(snapname):
             try:
-                snap = snapshot.Snapshot(snapname, lazy=True)
+                snap = snapshot.Snapshot(snapname) #, lazy=True)
                 gals_indices = snap.split_galaxies('stars', mass_list=mass_list)
                 coms = snap.measure_com('stars', gals_indices)
                 covs = np.empty((len(gals_indices), 3))
