@@ -1,4 +1,4 @@
-import numpy as np, pNbody as pnb, datetime, os, h5py
+import numpy as np, pNbody as pnb, datetime, os, h5py, gc
 from . import simulation, snapshot
 from functools import partial
 
@@ -42,6 +42,10 @@ def find_pos_pot(snapname, mass_arr=None):
         output.append(pos[own_most_bound, :].mean(axis=0))
         output.append(vel[own_most_bound, :].mean(axis=0))
     output.append(snap.header['time'])
+
+    del snap,gal_ids,pos,vel,mass,nb,pot,own_most_bound
+    gc.collect()
+
     return output
 
 def save_to_file(f, folder, times, mw_mass, lmc_mass, smc_mass, mw_pos, lmc_pos, smc_pos, mw_vel, lmc_vel, smc_vel):
