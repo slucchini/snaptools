@@ -10,6 +10,7 @@ import numpy as np, re, h5py
 from astropy.coordinates import SkyCoord,Galactocentric
 import astropy.units as u
 from .magellanicstream import MagellanicStream as MScoord
+from tqdm.notebook import tqdm
 
 
 """
@@ -133,11 +134,11 @@ class Simulation(object):
     def has_computed_positions(self):
         return os.path.exists(self.folder+'/computed_positions.hdf5')
 
-    def compute_positions(self,lmconly=False,overwrite=True,verbose=True):
+    def compute_positions(self,lmconly=False,multiprocessing=False,overwrite=True,verbose=True):
         """
         Generates computed_positions.hdf5 file with LMC, SMC, and MW pos and vel at all sim times
         """
-        cp.run(self,lmconly=lmconly,overwrite=overwrite,verbose=verbose)
+        cp.run(self,lmconly=lmconly,multiprocessing=multiprocessing,overwrite=overwrite,verbose=verbose)
 
     def get_computed_positions(self,mw=True,lmc=True,smc=True,times=True):
         if (self.has_computed_positions()):
@@ -208,24 +209,30 @@ class Simulation(object):
         return distances, velocities, times
 
 
-    def apply_function(self, function, *args):
+    def apply_function(self, function, multiprocessing=True, *args):
         """
         Map a user supplied function over the snapshots.
         Uses pathos.multiprocessing (https://github.com/uqfoundation/pathos.git).
         """
-        pool = Pool()
+        if (multiprocessing):
+            pool = Pool()
 
-        try:
-            val = pool.map(function, self.snaps)
+            try:
+                val = pool.map(function, self.snaps)
+                return val
+            except KeyboardInterrupt:
+                print('got ^C while pool mapping, terminating the pool')
+                pool.terminate()
+                print('pool is terminated')
+            except Exception as e:
+                print('got exception: %r, terminating the pool' % (e,))
+                pool.terminate()
+                print('pool is terminated')
+        else:
+            val = []
+            for s in tqdm(self.snaps):
+                val.append(function(s))
             return val
-        except KeyboardInterrupt:
-            print('got ^C while pool mapping, terminating the pool')
-            pool.terminate()
-            print('pool is terminated')
-        except Exception as e:
-            print('got exception: %r, terminating the pool' % (e,))
-            pool.terminate()
-            print('pool is terminated')
 
 
     def print_settings(self):

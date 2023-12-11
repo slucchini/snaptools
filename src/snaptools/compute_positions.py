@@ -74,7 +74,7 @@ def save_to_file(f, folder, times, mw_mass, lmc_mass, smc_mass, mw_pos, lmc_pos,
     dset = subgrp.create_dataset('smc_vel', smc_vel.shape)
     dset[:] = smc_vel
 
-def run(sim,lmconly,overwrite=True,verbose=False):
+def run(sim,lmconly,multiprocessing=False,overwrite=True,verbose=False):
 
     folder = sim.folder+"/"
 
@@ -132,7 +132,7 @@ def run(sim,lmconly,overwrite=True,verbose=False):
     if not os.path.isfile(save_file) or overwrite:  # if the file doesn't exist or if we want to overwrite the files
 
         #disk
-        positions_stars = sim.apply_function(_find_pos)
+        positions_stars = sim.apply_function(_find_pos, multiprocessing=multiprocessing)
 
         mw_pos = np.zeros((len(positions_stars), 3))
         mw_vel = np.zeros((len(positions_stars), 3))
