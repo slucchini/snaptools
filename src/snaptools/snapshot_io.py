@@ -420,35 +420,22 @@ class SnapBinary(Snapshot):
         self.pos = {}
         positions = np.fromfile(f, dtype=np.float32,
                                 count=NPARTS*3).reshape(NPARTS, 3)
-        NGAS = self.header['npart'][0]
-        if NGAS:
-            self.pos['gas'] = positions[0:NGAS, :]
-        NHALO = self.header['npart'][1]
-        if NHALO:
-            self.pos['halo'] = positions[NGAS:NGAS+NHALO, :]
-        NSTARS = self.header['npart'][2]
-        if NSTARS:
-            self.pos['stars'] = positions[NGAS+NHALO:NGAS+NHALO+NSTARS, :]
         self.vel = {}
         np.fromfile(f, dtype=np.int32, count=2)
         velocities = np.fromfile(f, dtype=np.float32,
                                  count=NPARTS*3).reshape(NPARTS, 3)
-        if NGAS:
-            self.vel['gas'] = velocities[0:NGAS, :]
-        if NHALO:
-            self.vel['halo'] = velocities[NGAS:NGAS+NHALO, :]
-        if NSTARS:
-            self.vel['stars'] = velocities[NGAS+NHALO:NGAS+NHALO+NSTARS, :]
         self.ids = {}
         np.fromfile(f, dtype=np.int32, count=2)
         ids = np.fromfile(f, dtype=np.int32,
                           count=NPARTS)
-        if NGAS:
-            self.ids['gas'] = ids[0:NGAS]
-        if NHALO:
-            self.ids['halo'] = ids[NGAS:NGAS+NHALO]
-        if NSTARS:
-            self.ids['stars'] = ids[NGAS+NHALO:NGAS+NHALO+NSTARS]
+        NPREV = 0
+        for i,g in enumerate(part_names):
+            NGROUP = self.header['npart'][i]
+            if NGROUP:
+                self.pos[g] = positions[NPREV:NPREV+NGROUP, :]
+                self.vel[g] = velocities[NPREV:NPREV+NGROUP, :]
+                self.ids[g] = ids[NPREV:NPREV+NGROUP]
+                NPREV += NGROUP
         self.pot = {}
         self.masses = {}
         self.misc = {}
@@ -469,6 +456,7 @@ class SnapBinary(Snapshot):
         if not any(massarr):
             np.fromfile(f, dtype=np.int32, count=2)
 
+        NGAS = self.header['npart'][0]
         if NGAS:
             self.misc['gas'] = {}
             self.misc['gas']['U'] = np.fromfile(f, dtype=np.float32, count=NGAS)
