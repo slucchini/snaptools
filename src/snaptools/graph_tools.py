@@ -1,6 +1,6 @@
 import networkx as nx, numpy as np
 from itertools import permutations
-from CloudObj import *
+from .CloudObj import *
 
 def get_graph_pos(G,xpad=1):
     snapnums = np.array([G.nodes[c]['snapnum'] for c in list(G.nodes)])
@@ -72,7 +72,7 @@ def prune_fork(subgraph):
     for i,n in enumerate(nodes):
         edgemask = np.array([n in e for e in subgraph.edges])
         nedges = np.sum(edgemask)
-        if (nedges > 2):
+        if ((nedges > 2) | ((nedges == 2) & (snaplist[i] in snapedges))):
             cnodes = np.array(subgraph.edges)[edgemask].ravel()
             cnodes = cnodes[cnodes != n]
             csnums = np.array([c.snapnum for c in cnodes])
@@ -81,6 +81,9 @@ def prune_fork(subgraph):
                 if (np.sum(cmask) > 1):
                     sizes = np.array([len(c) for c in cnodes[cmask]])
                     szmask = sizes != max(sizes)
+                    if (np.sum(szmask) == 0):
+                        szmask = np.ones(len(sizes),dtype=bool)
+                        szmask[0] = False
                     removelist.extend(cnodes[cmask][szmask])
             break
     subgraph.remove_nodes_from(removelist)
@@ -89,6 +92,7 @@ def prune_fork(subgraph):
 
 def prune_graph(subgraph):
     allgraphs = [subgraph.copy()]
+    breakready = 0
     while True:
         oldgraph = subgraph.copy()
         subgraph = prune_stragglers(subgraph)
@@ -98,6 +102,10 @@ def prune_graph(subgraph):
     while True:
         oldgraph = subgraph.copy()
         subgraph = prune_fork(subgraph)
+        if (len(oldgraph) == len(subgraph)):
+            breakready += 1
+        else:
+            breakready = 0
         allgraphs.append(subgraph.copy())
         while True:
             oldgraph = subgraph.copy()
@@ -105,6 +113,6 @@ def prune_graph(subgraph):
             if (len(subgraph) == len(oldgraph)):
                 break
         allgraphs.append(subgraph.copy())
-        if (len(subgraph) == len(oldgraph)):
+        if (breakready >= 2):
             break
     return subgraph

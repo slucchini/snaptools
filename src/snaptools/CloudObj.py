@@ -8,10 +8,11 @@ class CloudObj():
     
     def get_snapmask(self,sids,argsort):
         mask = np.zeros(len(sids),dtype=bool)
-        idmask = np.searchsorted(sids,self.members)
+        idcheck = [m in sids for m in self.members]
+        idmask = np.searchsorted(sids,self.members[idcheck])
         pos_to_change = np.arange(0,len(mask))[argsort][idmask]
         mask[pos_to_change] = True
-        return mask
+        return pos_to_change
     
     def __repr__(self):
         if ((len(self.members)>0) and hasattr(self,'snapnum')):
