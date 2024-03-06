@@ -855,7 +855,7 @@ class Snapshot(object):
                     dset[:] = self.vel[p]
                     dset = grp.create_dataset('ParticleIDs',
                                               self.ids[p].shape,
-                                              dtype='i4')
+                                              dtype=self.ids[p].dtype)
                     dset[:] = self.ids[p]
                     dset = grp.create_dataset('Masses',
                                               self.masses[p].shape
