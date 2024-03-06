@@ -36,10 +36,32 @@ def getGalacticWCS(lmcloc,xe,ye):
     head['CUNIT2'] = 'deg'
     head['CTYPE1'] = 'GLON-CYP'
     head['CTYPE2'] = 'GLAT-CYP'
-    head['CRVAL1'] = 280.4652
-    head['CRVAL2'] = -32.75
+    lmcgalc = coord.SkyCoord.from_name("LMC").transform_to(coord.Galactic)
+    head['CRVAL1'] = lmcgalc.l.value
+    head['CRVAL2'] = lmcgalc.b.value
     head['LONPOLE'] = 123.3
     head['LATPOLE'] = -800
+
+    head['WCSAXES'] = 2
+    head['NAXIS'] = 2
+
+    return wcs.WCS(head)
+
+def getEquatorialWCS(lmcloc,xe,ye):
+    head = fits.PrimaryHDU().header
+    head['CRPIX1'] = lmcloc[0]
+    head['CRPIX2'] = lmcloc[1]
+    head['CDELT1'] = xe[1]-xe[0]
+    head['CDELT2'] = ye[1]-ye[0]
+    head['CUNIT1'] = 'deg'
+    head['CUNIT2'] = 'deg'
+    head['CTYPE1'] = 'RA---CYP'
+    head['CTYPE2'] = 'DEC--CYP'
+    lmcgalc = coord.SkyCoord.from_name("LMC").transform_to(coord.ICRS)
+    head['CRVAL1'] = lmcgalc.ra.value
+    head['CRVAL2'] = lmcgalc.dec.value
+    # head['LONPOLE'] = 123.3
+    # head['LATPOLE'] = -800
 
     head['WCSAXES'] = 2
     head['NAXIS'] = 2

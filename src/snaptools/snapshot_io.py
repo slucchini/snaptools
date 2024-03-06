@@ -370,36 +370,23 @@ class SnapBinary(Snapshot):
                       'bulge',
                       'sfr',
                       'other']
-        npart = np.fromfile(f, dtype=np.int32,
-                            count=6)
+        npart = np.fromfile(f, dtype=np.int32,count=6)
         self.header['npart'] = npart
-        massarr = np.fromfile(f, dtype=np.float64,
-                              count=6)
+        massarr = np.fromfile(f, dtype=np.float64,count=6)
         self.header['massarr'] = massarr
-        self.header['time'] = (np.fromfile(f, dtype=np.float64,
-                                           count=1))[0]
-        self.header['redshift'] = (np.fromfile(f, dtype=np.float64,
-                                               count=1))[0]
-        self.header['sfr'] = (np.fromfile(f, dtype=np.int32,
-                                          count=1))[0]
-        self.header['feedback'] = (np.fromfile(f, dtype=np.int32,
-                                               count=1))[0]
-        nall = np.fromfile(f, dtype=np.int32,
-                           count=6)
+        self.header['time'] = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['redshift'] = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['sfr'] = (np.fromfile(f, dtype=np.int32,count=1))[0]
+        self.header['feedback'] = (np.fromfile(f, dtype=np.int32,count=1))[0]
+        nall = np.fromfile(f, dtype=np.int32,count=6)
         self.header['nall'] = nall
-        self.header['cooling'] = (np.fromfile(f, dtype=np.int32,
-                                              count=1))[0]
-        self.header['filenum'] = (np.fromfile(f, dtype=np.int32,
-                                              count=1))[0]
-        self.header['boxsize'] = (np.fromfile(f, dtype=np.float64,
-                                              count=1))[0]
-        self.header['omega0'] = (np.fromfile(f, dtype=np.float64,
-                                              count=1))[0]
-        self.header['omega_l'] = (np.fromfile(f, dtype=np.float64,
-                                              count=1))[0]
-        self.header['hubble'] = (np.fromfile(f, dtype=np.float64,
-                                             count=1))[0]
-        self.header['double'] = 0
+        self.header['cooling'] = (np.fromfile(f, dtype=np.int32,count=1))[0]
+        self.header['filenum'] = (np.fromfile(f, dtype=np.int32,count=1))[0]
+        self.header['boxsize'] = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['omega0']  = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['omega_l'] = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['hubble']  = (np.fromfile(f, dtype=np.float64,count=1))[0]
+        self.header['double']  = 0
         if swap:
             self.header['npart'].byteswap(True)
             self.header['massarr'].byteswap(True)
@@ -418,16 +405,13 @@ class SnapBinary(Snapshot):
         np.fromfile(f, dtype=np.int32, count=25)
         NPARTS = np.sum(self.header['npart'])
         self.pos = {}
-        positions = np.fromfile(f, dtype=np.float32,
-                                count=NPARTS*3).reshape(NPARTS, 3)
+        positions = np.fromfile(f, dtype=np.float32,count=NPARTS*3).reshape(NPARTS, 3)
         self.vel = {}
         np.fromfile(f, dtype=np.int32, count=2)
-        velocities = np.fromfile(f, dtype=np.float32,
-                                 count=NPARTS*3).reshape(NPARTS, 3)
+        velocities = np.fromfile(f, dtype=np.float32,count=NPARTS*3).reshape(NPARTS, 3)
         self.ids = {}
         np.fromfile(f, dtype=np.int32, count=2)
-        ids = np.fromfile(f, dtype=np.int32,
-                          count=NPARTS)
+        ids = np.fromfile(f, dtype=np.int32,count=NPARTS)
         NPREV = 0
         for i,g in enumerate(part_names):
             NGROUP = self.header['npart'][i]
