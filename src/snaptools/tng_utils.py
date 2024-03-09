@@ -1,4 +1,4 @@
-import numpy as np, matplotlib.pyplot as plt, h5py, arepo
+import numpy as np, matplotlib.pyplot as plt, h5py, arepo, os, pickle
 from tqdm.notebook import tqdm
 from scipy.spatial.transform import Rotation as R
 import astropy.units as u, astropy.coordinates as coords
@@ -146,25 +146,34 @@ def get_scale_length(files,outfolder,save=False,verbose=True):
                 plt.close(fig)
 
 def get_deviation_vel(p,v,filename,rsun=8,verbose=False):
-    sa = arepo.Snapshot(filename)
-    sa.pos[:] = sa.pos - np.median(sa.part4.pos,axis=0)
+    vavgfile = '.'.join(filename.split('.')[:-1])+"_vavg.pkl"
+
     G = 4.3*10**(4) # (km/s)^2 kpc (10^10 solar masses)^-1
     rmax = 300 #kpc
     deltar = 0.1 #kpc
     intmax = int(rmax/deltar)
-    massencl = {} # in 10^10 solar masses
-    vavg = {} # in km/s
-    loop = enumerate(tqdm(sa.groups)) if verbose else enumerate(sa.groups)
-    for gi,g in loop:
-        if ('pos' in g.data):
-            radii = np.linalg.norm(g.pos,axis=1)
-            if ('mass' in g.data):
-                massencl[gi] = np.array([np.sum(g.mass[radii < ((i+1)*deltar)]) for i in range(intmax)])
-            else:
-                massencl[gi] = np.array([len(g.pos[radii < ((i+1)*deltar)])*sa.masses[gi] for i in range(intmax)])
-            vavg[gi] = np.array([np.sqrt(G*m/((i+1)*deltar)) for i,m in enumerate(massencl[gi])])
 
-    vavg["total"] = np.array([np.sqrt(np.sum([vavg[gi][i]**2 for gi in massencl.keys()])) for i in range(intmax)])
+    if os.path.exists(vavgfile):
+        with open(vavgfile,'rb') as f:
+            vavg = pickle.load(f)
+    else:
+        sa = arepo.Snapshot(filename)
+        sa.pos[:] = sa.pos - np.median(sa.part4.pos,axis=0)
+        massencl = {} # in 10^10 solar masses
+        vavg = {} # in km/s
+        loop = enumerate(tqdm(sa.groups)) if verbose else enumerate(sa.groups)
+        for gi,g in loop:
+            if ('pos' in g.data):
+                radii = np.linalg.norm(g.pos,axis=1)
+                if ('mass' in g.data):
+                    massencl[gi] = np.array([np.sum(g.mass[radii < ((i+1)*deltar)]) for i in range(intmax)])
+                else:
+                    massencl[gi] = np.array([len(g.pos[radii < ((i+1)*deltar)])*sa.masses[gi] for i in range(intmax)])
+                vavg[gi] = np.array([np.sqrt(G*m/((i+1)*deltar)) for i,m in enumerate(massencl[gi])])
+
+        vavg["total"] = np.array([np.sqrt(np.sum([vavg[gi][i]**2 for gi in massencl.keys()])) for i in range(intmax)])
+        with open(vavgfile,'wb') as f:
+            pickle.dump(vavg,f)
     xvals = np.array(range(intmax))*deltar
 
     sc = coords.SkyCoord(coords.Galactocentric(x=p[:,0]*u.kpc,y=p[:,1]*u.kpc,z=p[:,2]*u.kpc,
