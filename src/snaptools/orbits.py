@@ -250,13 +250,21 @@ def F(t, raw_w, nbody, chandra_kwargs):
     #                             Msat=1e12,vmax=chandra_kwargs['vmax'][0])
 
     # Compute MW DF (only on non-MW particles)
-    wdot[3:, 1:] += chandrasekhar_acc(t, raw_w[:, 0:], mw_potential=chandra_kwargs['mw_potential'], 
-                                Msat=chandra_kwargs['Msats'],vmax=chandra_kwargs['vmax'][0],xi=chandra_kwargs['xi'],mw=True)
-    # Compute LMC DF (only on SMC)
-    if (chandra_kwargs['smc_potential'] is not None):
-        wdot[3:, 2:] += chandrasekhar_acc(t, raw_w[:, 1:], mw_potential=chandra_kwargs['lmc_potential'],
-                                    Msat=chandra_kwargs['Msats'][0][1:],vmax=chandra_kwargs['vmax'][1],
-                                    xi=chandra_kwargs['xi'],mw=False)
+    xi = chandra_kwargs['xi']
+    if (chandra_kwargs['mw_potential'] is not None):
+        wdot[3:, 1:] += xi*chandrasekhar_acc(t, raw_w[:, 0:], mw_potential=chandra_kwargs['mw_potential'], 
+                                    Msat=chandra_kwargs['Msats'],vmax=chandra_kwargs['vmax'][0],xi=chandra_kwargs['xi'],mw=True)
+        # Compute LMC DF (only on SMC)
+        if (chandra_kwargs['smc_potential'] is not None):
+            wdot[3:, 2:] += xi*chandrasekhar_acc(t, raw_w[:, 1:], mw_potential=chandra_kwargs['lmc_potential'],
+                                        Msat=chandra_kwargs['Msats'][0][1:],vmax=chandra_kwargs['vmax'][1],
+                                        xi=chandra_kwargs['xi'],mw=False)
+    else:
+        # Compute LMC DF (only on SMC)
+        if (chandra_kwargs['smc_potential'] is not None):
+            wdot[3:, 1:] += xi*chandrasekhar_acc(t, raw_w[:, 0:], mw_potential=chandra_kwargs['lmc_potential'],
+                                        Msat=chandra_kwargs['Msats'][0][1:],vmax=chandra_kwargs['vmax'][1],
+                                        xi=chandra_kwargs['xi'],mw=False)
     # wdot[3:, 2:] += tidal_acc(t, raw_w[:, 1:], chandra_kwargs['lmc_potential'], chandra_kwargs['Msmc'])
 
     wdot[:3] = w.v_xyz.decompose(nbody.units).value
@@ -265,11 +273,15 @@ def F(t, raw_w, nbody, chandra_kwargs):
     # if ((chandra_kwargs['hydro_component'] is not None) and (chandra_kwargs['hydro_factor'] != 0)):
     #     wdot[3:,1:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,0:],chandra_kwargs['hydro_component'],chandra_kwargs['hydro_area'],chandra_kwargs['hydro_Msat'])
     if (chandra_kwargs['hydro_factor'] != 0):
-        for cpt in chandra_kwargs['hydro_component'][0]:
-            wdot[3:,1:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,0:],cpt,chandra_kwargs['hydro_area'],chandra_kwargs['hydro_Msat'])
-        if (chandra_kwargs['smc_potential'] is not None):
+        if (chandra_kwargs['mw_potential'] is not None):
+            for cpt in chandra_kwargs['hydro_component'][0]:
+                wdot[3:,1:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,0:],cpt,chandra_kwargs['hydro_area'],chandra_kwargs['hydro_Msat'])
+            if (chandra_kwargs['smc_potential'] is not None):
+                for cpt in chandra_kwargs['hydro_component'][1]:
+                    wdot[3:,2:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,1:],cpt,chandra_kwargs['hydro_area'][0][1],chandra_kwargs['hydro_Msat'][0][1])
+        else:
             for cpt in chandra_kwargs['hydro_component'][1]:
-                wdot[3:,2:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,1:],cpt,chandra_kwargs['hydro_area'][0][1],chandra_kwargs['hydro_Msat'][0][1])
+                wdot[3:,1:] += chandra_kwargs['hydro_factor']*rampressure_acc(t, raw_w[:,0:],cpt,chandra_kwargs['hydro_area'][0][1],chandra_kwargs['hydro_Msat'][0][1])
     
     ### Tidal Mass Loss ###
     # from MW
@@ -284,12 +296,16 @@ def F(t, raw_w, nbody, chandra_kwargs):
     #     for i in range(len(sat_Mleft)):
     #         nbody.particle_potentials[i+1]['halo'] = gp.HernquistPotential(m=sat_Mleft[i],c=nbody.particle_potentials[i+1]['halo'].parameters['c'],units=galactic)
     if chandra_kwargs['massloss']:
-        if (chandra_kwargs['smc_potential'] is not None):
-            sat_r1 = get_tidal_r(t,raw_w[:,0:3],chandra_kwargs['mw_potential'],[chandra_kwargs['lmc_potential'],chandra_kwargs['smc_potential']])
-            sat_r2 = get_tidal_r(t,raw_w[:,1:3],chandra_kwargs['lmc_potential'],[chandra_kwargs['smc_potential']])
-            sat_r = [sat_r1[0],min(sat_r1[1],sat_r2[0])]
+        if (chandra_kwargs['mw_potential'] is not None):
+            if (chandra_kwargs['smc_potential'] is not None):
+                sat_r1 = get_tidal_r(t,raw_w[:,0:3],chandra_kwargs['mw_potential'],[chandra_kwargs['lmc_potential'],chandra_kwargs['smc_potential']])
+                sat_r2 = get_tidal_r(t,raw_w[:,1:3],chandra_kwargs['lmc_potential'],[chandra_kwargs['smc_potential']])
+                sat_r = [sat_r1[0],min(sat_r1[1],sat_r2[0])]
+            else:
+                sat_r = [get_tidal_r(t,raw_w,chandra_kwargs['mw_potential'],[chandra_kwargs['lmc_potential']])]
         else:
-            sat_r = [get_tidal_r(t,raw_w,chandra_kwargs['mw_potential'],[chandra_kwargs['lmc_potential']])]
+            sat_r2 = get_tidal_r(t,raw_w[:,0:],chandra_kwargs['lmc_potential'],[chandra_kwargs['smc_potential']])
+            sat_r = [sat_r2]
         
         for i in range(len(sat_r)):
             oldparams = nbody.particle_potentials[i+1]['halo'].parameters
@@ -317,6 +333,8 @@ def get_default_potentials():
     return pot_mw,pot_lmc,pot_smc
 
 def get_hydro_cpts(pot,name='cgm'):
+    if (pot is None):
+        return None
     m = [k.startswith(name) for k in pot.keys()]
     potlist = []
     for k in np.array(list(pot.keys()))[m]:
@@ -326,13 +344,13 @@ def get_hydro_cpts(pot,name='cgm'):
 def run_orbit(lmc_pos,lmc_vel,smc_pos=None,smc_vel=None,t2=-5*u.Gyr,dt=-10*u.Myr,coulombLogXi=1,rampressure=0,tidal=0,massloss=0,pot_mw=None,pot_lmc=None,pot_smc=None,progress=True,hydro_areas=np.array([[np.pi*8**2,np.pi*4**2]])):
     
     ### Set potentials
-    pot1,pot2,pot3 = get_default_potentials()
-    if (pot_mw is None):
-        pot_mw = pot1
-    if (pot_lmc is None):
-        pot_lmc = pot2
-    if (pot_smc is None):
-        pot_smc = pot3
+    # pot1,pot2,pot3 = get_default_potentials()
+    # if (pot_mw is None):
+    #     pot_mw = pot1
+    # if (pot_lmc is None):
+    #     pot_lmc = pot2
+    # if (pot_smc is None):
+    #     pot_smc = pot3
 
     lmc_mhalo = 0.0; lmc_mdisk = 0.0; smc_mhalo = 0.0; smc_mdisk = 0.0
     if 'halo' in pot_lmc:
@@ -344,7 +362,10 @@ def run_orbit(lmc_pos,lmc_vel,smc_pos=None,smc_vel=None,t2=-5*u.Gyr,dt=-10*u.Myr
     if 'disk' in pot_smc:
         smc_mdisk = pot_smc['disk'].parameters['m'].to('Msun').value if 'disk' in pot_smc else 0.0
 
-    vmax_mw = np.nanmax(pot_mw.circular_velocity(np.array(list(zip(np.zeros(101),np.zeros(101),np.linspace(0,200,101)))).T))
+    if pot_mw is not None:
+        vmax_mw = np.nanmax(pot_mw.circular_velocity(np.array(list(zip(np.zeros(101),np.zeros(101),np.linspace(0,200,101)))).T))
+    else:
+        vmax_mw = None
     vmax_lmc = np.nanmax(pot_lmc.circular_velocity(np.array(list(zip(np.zeros(101),np.zeros(101),np.linspace(0,200,101)))).T))
 
     chandra_kwargs = {
@@ -371,16 +392,24 @@ def run_orbit(lmc_pos,lmc_vel,smc_pos=None,smc_vel=None,t2=-5*u.Gyr,dt=-10*u.Myr
             pos=lmc_pos*u.kpc,
             vel=lmc_vel*u.km/u.s
         )
-    if (smc_pos is not None):
-        w0_smc = gd.PhaseSpacePosition(
-                pos=smc_pos*u.kpc,
-                vel=smc_vel*u.km/u.s
-            )
-        w0 = gd.combine((w0_mw, w0_lmc, w0_smc))
-        nbody = gd.DirectNBody(w0, [pot_mw, pot_lmc, pot_smc])
+    if (pot_mw is not None):
+        if (smc_pos is not None):
+            w0_smc = gd.PhaseSpacePosition(
+                    pos=smc_pos*u.kpc,
+                    vel=smc_vel*u.km/u.s
+                )
+            w0 = gd.combine((w0_mw, w0_lmc, w0_smc))
+            nbody = gd.DirectNBody(w0, [pot_mw, pot_lmc, pot_smc])
+        else:
+            w0 = gd.combine((w0_mw, w0_lmc))
+            nbody = gd.DirectNBody(w0, [pot_mw, pot_lmc])
     else:
-        w0 = gd.combine((w0_mw, w0_lmc))
-        nbody = gd.DirectNBody(w0, [pot_mw, pot_lmc])
+        w0_smc = gd.PhaseSpacePosition(
+                    pos=smc_pos*u.kpc,
+                    vel=smc_vel*u.km/u.s
+                )
+        w0 = gd.combine((w0_lmc, w0_smc))
+        nbody = gd.DirectNBody(w0, [pot_lmc, pot_smc])
 
     ### Run integrator
     integrator = gi.DOPRI853Integrator(
