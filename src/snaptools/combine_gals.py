@@ -4,6 +4,7 @@ from . import snapshot
 import astropy.units as u
 from astropy import constants
 
+G = 43021.129
 PART_NAMES = ['gas', 'halo', 'stars', 'bulge', 'sfr', 'other']
 
 # solar metallicity
@@ -341,3 +342,96 @@ def rotate_point(xyz, angles, axes):
         xyz[:, ax[0]], xyz[:, ax[1]] = co * xyz[:, ax[0]] - si * xyz[:, ax[1]],\
                                             si * xyz[:, ax[0]] + co * xyz[:, ax[1]]
     return xyz
+
+
+def kepler_move_galaxies(g1, g2, params, plane=[0,1], absolute=False):
+
+    def move_galaxy(snap, xyz, vxyz):
+
+        for i, ptype in enumerate(PART_NAMES):
+            if snap.header['npart'][i] > 0:
+                for i in range(0, 3):
+                    snap.pos[ptype][:, i] += xyz[i]
+                    snap.vel[ptype][:, i] += vxyz[i]
+
+    M1 = np.sum([np.sum(g1.masses[p]) for p in g1.masses.keys()])
+    M2 = np.sum([np.sum(g2.masses[p]) for p in g2.masses.keys()])
+
+    # M1 = np.sum([g1.masses[p][0]*g1.header['nall'][i]
+    #                         if g1.header['nall'][i] > 0
+    #                         else 0  # Add up all particle types
+    #                         for i, p in enumerate(ptypes)])
+    
+    # M2 = np.sum([g2.masses[p][0]*g2.header['nall'][i]
+    #                         if g2.header['nall'][i] > 0
+    #                         else 0  # Add up all particle types
+    #                         for i, p in enumerate(ptypes)])
+    
+    phistart = 0
+    rmax = 1.0e+6
+
+    rstart_oc = params['rstart']
+
+    #semi-latus rectum
+    p = (1 + params['ecc']) * params['rperi']
+    # Apocentric distance
+    if(params['ecc'] < 1):
+        rmax = p/(1-params['ecc'])
+        print("rmax = {}".format(rmax))
+        
+    if(params['ecc'] > 0):
+        # True anomaly
+        phistart = -np.arccos((p / rstart_oc - 1)/params['ecc'])
+
+    M = M1 + M2
+
+    phidotstart = np.sqrt(G * M * p) / (rstart_oc * rstart_oc)
+
+    if(params['rperi'] > 0):
+        rdotstart = (params['ecc'] * rstart_oc * rstart_oc /
+                     p * np.sin(phistart) * phidotstart)
+    else:
+        rdotstart = -np.sqrt(2 * G * M / rstart_oc)
+
+    if(rstart_oc > rmax):
+        print("WARNING: rstart_oc > rmax: ")
+        print("     This will be a problem, and most" +
+              "likely generate many instances of 'nan'.")
+        print("     (but we'll carry on anyway - edit" +
+              "kepler_move to change this)")
+
+    pos = np.array([rstart_oc * np.cos(phistart),
+                    rstart_oc * np.sin(phistart),
+                    0])
+
+    vel = np.array([(rdotstart * np.cos(phistart) -
+                     rstart_oc * phidotstart * np.sin(phistart)),
+                    (rdotstart * np.sin(phistart) +
+                     rstart_oc * phidotstart * np.cos(phistart)),
+                    0])
+
+    g1xyz = pos * M2 / M
+    g1vxyz = vel * M2 / M
+#     move_galaxy(g1, xyz, vxyz)
+
+    g2xyz = pos * (-M1 / M)
+    g2vxyz = vel * (-M1 / M)
+#     move_galaxy(g2, xyz, vxyz)
+
+    g1pos,g1vel,g2pos,g2vel = np.zeros((4,3))
+    for a,o in zip([g1xyz,g1vxyz,g2xyz,g2vxyz],[g1pos,g1vel,g2pos,g2vel]):
+        o[plane[0]] = a[0]
+        o[plane[1]] = a[1]
+        
+    if (absolute):
+        print("lmc_pos = np.array([{}, {}, {}]) # kpc".format(g1xyz[0],g1xyz[1],g1xyz[2]))
+        print("lmc_vel = np.array([{}, {}, {}]) # km/s".format(g1vxyz[0],g1vxyz[1],g1vxyz[2]))
+        print("smc_pos = np.array([{}, {}, {}]) # kpc".format(g2xyz[0],g2xyz[1],g2xyz[2]))
+        print("smc_vel = np.array([{}, {}, {}]) # km/s".format(g2vxyz[0],g2vxyz[1],g2vxyz[2]))
+        return np.array([g1xyz,g1vxyz,g2xyz,g2vxyz])
+    else:
+        xyz = g2pos-g1pos
+        vxyz = g2vel-g1vel
+        print("smc_pos = np.array([{}, {}, {}]) # kpc".format(xyz[0],xyz[1],xyz[2]))
+        print("smc_vel = np.array([{}, {}, {}]) # km/s".format(vxyz[0],vxyz[1],vxyz[2]))
+        return np.array([xyz, vxyz])
