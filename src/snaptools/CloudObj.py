@@ -1,9 +1,14 @@
 import numpy as np
 
+### TODO:
+# update __eq__ to take other as an iterable
+# add less and greater so that we can use np.unique and sort
+    # Probably sort on snapnum and then ID
+
 class CloudObj():
     def __init__(self,members=[],snapnum=0):
-        list(np.unique(members)).sort()
-        self.members = members
+        # list(np.unique(members)).sort()
+        self.members = np.unique(members)
         self.snapnum = snapnum
     
     def get_snapmask(self,sids,argsort):
@@ -29,7 +34,7 @@ class CloudObj():
         return self.__hash__() == other.__hash__()
     
     def __hash__(self):
-        self.members.sort()
+        # self.members.sort()
         try:
             return hash(frozenset([self.snapnum]+self.members))
         except:
