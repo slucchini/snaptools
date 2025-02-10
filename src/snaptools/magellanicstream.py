@@ -8,7 +8,7 @@ import astropy.coordinates as coord, astropy.units as u
 from astropy.io import fits
 from astropy import wcs
 
-def getMagellanicWCS(xe,ye):
+def getMagellanicWCS(xe,ye,returnhead=False):
     head = fits.PrimaryHDU().header
     head['NAXIS1'] = len(xe)
     head['NAXIS2'] = len(ye)
@@ -24,7 +24,10 @@ def getMagellanicWCS(xe,ye):
     head['WCSAXES'] = 2
     head['NAXIS'] = 2
 
-    return wcs.WCS(head)
+    if returnhead:
+        return head
+    else:
+        return wcs.WCS(head)
 
 def getGalacticWCS(lmcloc,xe,ye):
     head = fits.PrimaryHDU().header
