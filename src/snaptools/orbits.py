@@ -299,7 +299,7 @@ def F_many(t, raw_w, nbody, chandra_kwargs):
 
     ### Dynamical Friction
     xi = chandra_kwargs['xi']
-    ngals = len(chandra_kwargs['gal_pots'])
+    ngals = np.sum([gp is not None for gp in chandra_kwargs['gal_pots']])
     for i in range(ngals-1):
         for j in range(ngals):
             if (j<=i):
