@@ -1,4 +1,4 @@
-import numpy as np, matplotlib.pyplot as plt, h5py, arepo, os, pickle
+import numpy as np, matplotlib.pyplot as plt, h5py, arepo, os, pickle, healpy as hp
 from tqdm.notebook import tqdm
 from scipy.spatial.transform import Rotation as R
 import astropy.units as u, astropy.coordinates as coords
@@ -144,6 +144,85 @@ def get_scale_length(files,outfolder,save=False,verbose=True):
                 ax.set_xlabel("R (kpc)")
                 plt.show()
                 plt.close(fig)
+
+def get_rotation_curve(filename,center=None,verbose=False):
+    vavgfile = '.'.join(filename.split('.')[:-1])+"_vavg.pkl"
+
+    G = 4.3*10**(4) # (km/s)^2 kpc (10^10 solar masses)^-1
+    rmax = 300 #kpc
+    deltar = 0.1 #kpc
+    intmax = int(rmax/deltar)
+
+    if os.path.exists(vavgfile):
+        with open(vavgfile,'rb') as f:
+            vavg = pickle.load(f)
+    else:
+        sa = arepo.Snapshot(filename)
+        if (center is None):
+            center = np.median(sa.part4.pos,axis=0)
+        sa.pos[:] = sa.pos - center
+        massencl = {} # in 10^10 solar masses
+        vavg = {} # in km/s
+        loop = enumerate(tqdm(sa.groups)) if verbose else enumerate(sa.groups)
+        for gi,g in loop:
+            if ('pos' in g.data):
+                radii = np.linalg.norm(g.pos,axis=1)
+                if ('mass' in g.data):
+                    massencl[gi] = np.array([np.sum(g.mass[radii < ((i+1)*deltar)]) for i in range(intmax)])
+                else:
+                    massencl[gi] = np.array([len(g.pos[radii < ((i+1)*deltar)])*sa.masses[gi] for i in range(intmax)])
+                vavg[gi] = np.array([np.sqrt(G*m/((i+1)*deltar)) for i,m in enumerate(massencl[gi])])
+
+        vavg["total"] = np.array([np.sqrt(np.sum([vavg[gi][i]**2 for gi in massencl.keys()])) for i in range(intmax)])
+        with open(vavgfile,'wb') as f:
+            pickle.dump(vavg,f)
+    
+    return vavg
+
+def get_disk_v_lims(filename,nside=128,center=None):
+
+    def getlb(theta,phi):
+        b = np.pi/2 - theta
+        l = -1*phi
+        l[l<-np.pi] += 2*np.pi
+        return l,b
+
+    vavg = get_rotation_curve(filename,center=center)
+    vlimsfile = '.'.join(filename.split('.')[:-1])+"_vlims_{}.pkl".format(nside)
+
+    rmax = 300 #kpc
+    deltar = 0.1 #kpc
+    intmax = int(rmax/deltar)
+    xvals = np.array(range(intmax))*deltar
+
+    npix = hp.nside2npix(nside)
+    disk_v_lims = np.zeros((npix,2))
+
+    if os.path.exists(vlimsfile):
+        with open(vlimsfile,'rb') as f:
+            disk_v_lims = pickle.load(f)
+    else:
+        rmax = 50; dr = 0.1; nr = int(rmax/dr)
+        diskr = 20; diskz = 5
+        gccoord = coords.Galactocentric(galcen_distance=8*u.kpc)
+        for i in tqdm(range(npix)):
+            # l,b = getlb(*hp.pix2ang(nside,[i]))
+            l,b = np.deg2rad(hp.pix2ang(nside,[i],lonlat=True))
+            line_coords = coords.SkyCoord(coords.Galactic(l=np.ones(nr)*l[0]*u.rad,b=np.ones(nr)*b[0]*u.rad,
+                                                        distance=np.arange(0,rmax,dr)*u.kpc)).transform_to(gccoord)
+            line_xyz = line_coords.cartesian.xyz.value.T
+            rxy = np.linalg.norm(line_xyz[:,:2],axis=1)
+            indisk_mask = (rxy < diskr) & (np.abs(line_xyz[:,2]) < diskz)
+            ixy = np.digitize(rxy,xvals)
+            rsun = 8 # kpc
+            vsun = -1*vavg['total'][np.digitize(rsun,xvals)] # km/s
+            disk_vrad = -1*(vavg['total'][ixy[indisk_mask]]*rsun/rxy[indisk_mask] - vsun)*np.sin(l)*np.cos(b)
+            disk_v_lims[i] = [min(disk_vrad),max(disk_vrad)]
+        with open(vlimsfile,'wb') as f:
+            pickle.dump(disk_v_lims,f)
+        
+    return disk_v_lims
+
 
 def get_deviation_vel(p,v,filename,rsun=8,verbose=False):
     vavgfile = '.'.join(filename.split('.')[:-1])+"_vavg.pkl"

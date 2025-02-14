@@ -46,73 +46,162 @@ def get_largest_connected(subgraph):
     cclen = np.array([len(c) for c in cc])
     return subgraph.subgraph(cc[np.argmax(cclen)]).copy()
 
-def prune_stragglers(subgraph):
+# def prune_stragglers(subgraph,safeclouds=[]):
+#     nodes,snaplist,snapedges = graph_data(subgraph)
+#     removelist = []
+#     for i,n in enumerate(nodes):
+#         edgemask = np.array([n in e for e in subgraph.edges])
+#         nedges = np.sum(edgemask)
+#         ## if it's a dead-end branch
+#         if (snaplist[i] not in snapedges):
+#             if (nedges == 1):
+#                 removelist.append(n)
+#             else:
+#                 cnodes = np.array(subgraph.edges)[edgemask].ravel()
+#                 cnodes = cnodes[cnodes != n]
+#                 csnums = np.array([c.snapnum for c in cnodes])
+#                 if (len(np.unique(csnums)) == 1):
+#                     removelist.append(n)
+#     for sc in safeclouds:
+#         while (sc in removelist):
+#             removelist.remove(sc)
+#     subgraph.remove_nodes_from(removelist)
+#     subgraph = get_largest_connected(subgraph)
+#     return subgraph
+def prune_stragglers(subgraph,safeclouds=[]):
+    leaf_nodes = [node for node, degree in subgraph.degree() if degree == 1]
     nodes,snaplist,snapedges = graph_data(subgraph)
-    removelist = []
-    for i,n in enumerate(nodes):
-        edgemask = np.array([n in e for e in subgraph.edges])
-        nedges = np.sum(edgemask)
-        ## if it's a dead-end branch
-        if (snaplist[i] not in snapedges):
-            if (nedges == 1):
-                removelist.append(n)
-            else:
-                cnodes = np.array(subgraph.edges)[edgemask].ravel()
-                cnodes = cnodes[cnodes != n]
-                csnums = np.array([c.snapnum for c in cnodes])
-                if (len(np.unique(csnums)) == 1):
-                    removelist.append(n)
+    removelist = list(np.array(leaf_nodes)[[n.snapnum not in snapedges for n in leaf_nodes]])
+    for sc in safeclouds:
+        while (sc in removelist):
+            removelist.remove(sc)
     subgraph.remove_nodes_from(removelist)
     subgraph = get_largest_connected(subgraph)
     return subgraph
 
-def prune_fork(subgraph):
+# def prune_fork(subgraph,safeclouds=[]):
+#     nodes,snaplist,snapedges = graph_data(subgraph)
+#     removelist = []
+#     for i,n in enumerate(nodes):
+#         edgemask = np.array([n in e for e in subgraph.edges])
+#         nedges = np.sum(edgemask)
+#         if ((nedges > 2) | ((nedges == 2) & (snaplist[i] in snapedges))):
+#             cnodes = np.array(subgraph.edges)[edgemask].ravel()
+#             cnodes = cnodes[cnodes != n]
+#             csnums = np.array([c.snapnum for c in cnodes])
+#             for si in np.unique(csnums):
+#                 cmask = csnums == si
+#                 if (np.sum(cmask) > 1):
+#                     sizes = np.array([len(c) for c in cnodes[cmask]])
+#                     szmask = sizes != max(sizes)
+#                     if (np.sum(szmask) == 0):
+#                         szmask = np.ones(len(sizes),dtype=bool)
+#                         szmask[0] = False
+#                     removelist.extend(cnodes[cmask][szmask])
+#             break
+#     for sc in safeclouds:
+#         while (sc in removelist):
+#             removelist.remove(sc)
+#     subgraph.remove_nodes_from(removelist)
+#     subgraph = get_largest_connected(subgraph)
+#     return subgraph
+def prune_fork(subgraph,safeclouds=[]):
     nodes,snaplist,snapedges = graph_data(subgraph)
     removelist = []
-    for i,n in enumerate(nodes):
-        edgemask = np.array([n in e for e in subgraph.edges])
-        nedges = np.sum(edgemask)
-        if ((nedges > 2) | ((nedges == 2) & (snaplist[i] in snapedges))):
-            cnodes = np.array(subgraph.edges)[edgemask].ravel()
-            cnodes = cnodes[cnodes != n]
-            csnums = np.array([c.snapnum for c in cnodes])
-            for si in np.unique(csnums):
-                cmask = csnums == si
-                if (np.sum(cmask) > 1):
-                    sizes = np.array([len(c) for c in cnodes[cmask]])
-                    szmask = sizes != max(sizes)
-                    if (np.sum(szmask) == 0):
-                        szmask = np.ones(len(sizes),dtype=bool)
-                        szmask[0] = False
-                    removelist.extend(cnodes[cmask][szmask])
+    nodes1 = [node for node, degree in subgraph.degree() if degree > 2]
+    nodes2 = [node for node, degree in subgraph.degree() if degree == 2]
+    nodes2 = list(np.array(nodes2)[[n.snapnum in snapedges for n in nodes2]])
+    for i,n in enumerate(nodes1+nodes2):
+        cnodes = np.array(list(nx.neighbors(subgraph,n)))
+        csnums = np.array([c.snapnum for c in cnodes])
+        for si in np.unique(csnums):
+            cmask = csnums == si
+            if (np.sum(cmask) > 1):
+                sizes = np.array([len(c) for c in cnodes[cmask]])
+                szmask = sizes != max(sizes)
+                if (np.sum(szmask) == 0):
+                    szmask = np.ones(len(sizes),dtype=bool)
+                    szmask[0] = False
+                removelist.extend(cnodes[cmask][szmask])
+        break
+    for sc in safeclouds:
+        while (sc in removelist):
+            removelist.remove(sc)
+    subgraph.remove_nodes_from(removelist)
+    subgraph = get_largest_connected(subgraph)
+    return subgraph
+
+def find_safeclouds(subgraph):
+    subgraph_snums = np.array([n.snapnum for n in list(subgraph.nodes)])
+    csnum = max(subgraph_snums)
+    alledges = np.array(list(subgraph.edges))
+    final_clouds = np.array(list(subgraph.nodes))[subgraph_snums == max(subgraph_snums)]
+    safeclouds = []
+    for cc in final_clouds:
+        safeclouds.append([cc])
+    doneclouds = np.zeros(len(final_clouds),dtype=bool)
+    while csnum > 2900:
+        print(csnum)
+        for j in range(len(final_clouds)):
+            cc = safeclouds[j][-1]
+            for i,cl in enumerate(list(subgraph.nodes)):
+                if (cl == cc):
+                    print(i)
+            edgemask = np.array([cc in e for e in alledges])
+            edgeclouds = np.ravel(alledges[edgemask])
+            edgeclouds = edgeclouds[edgeclouds != cc]
+            prevclouds = edgeclouds[[ec.snapnum == csnum-1 for ec in edgeclouds]]
+            if (len(prevclouds) > 0):
+                prevcloud_len = np.array([len(pc) for pc in prevclouds])
+                prevcloud = prevclouds[np.argmax(prevcloud_len)]
+                safeclouds[j].append(prevcloud)
+                for i,cl in enumerate(list(subgraph.nodes)):
+                    if (cl == prevcloud):
+                        print(i)
+            print("")
+        checked_clouds = []
+        for j in range(len(final_clouds)):
+            if not doneclouds[j]:
+                if (safeclouds[j][-1] in checked_clouds):
+                    safeclouds[j][-1] = None
+                    doneclouds[j] = True
+                else:
+                    checked_clouds.append(safeclouds[j][-1])
+        if (np.sum(doneclouds) == len(doneclouds)-1):
+            print("All done")
             break
-    subgraph.remove_nodes_from(removelist)
-    subgraph = get_largest_connected(subgraph)
-    return subgraph
+        csnum -= 1
+    # safeclouds = np.ravel(safeclouds)
+    scflat = []
+    for sc in safeclouds:
+        scflat.extend(sc)
+    safeclouds = np.array(scflat)
+    safeclouds = safeclouds[[sc is not None for sc in safeclouds]]
+    return safeclouds
 
-def prune_graph(subgraph):
-    allgraphs = [subgraph.copy()]
+def prune_graph(subgraph,keep_final_clouds=False):
     breakready = 0
     while True:
         oldgraph = subgraph.copy()
         subgraph = prune_stragglers(subgraph)
         if (len(subgraph) == len(oldgraph)):
             break
-    allgraphs.append(subgraph.copy())
+    if keep_final_clouds:
+        safeclouds = find_safeclouds(subgraph)
+    else:
+        safeclouds = []
     while True:
         oldgraph = subgraph.copy()
-        subgraph = prune_fork(subgraph)
+        subgraph = prune_fork(subgraph,safeclouds)
         if (len(oldgraph) == len(subgraph)):
             breakready += 1
         else:
             breakready = 0
-        allgraphs.append(subgraph.copy())
         while True:
             oldgraph = subgraph.copy()
-            subgraph = prune_stragglers(subgraph)
+            subgraph = prune_stragglers(subgraph,safeclouds)
             if (len(subgraph) == len(oldgraph)):
                 break
-        allgraphs.append(subgraph.copy())
         if (breakready >= 2):
             break
     return subgraph
