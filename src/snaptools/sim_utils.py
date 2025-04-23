@@ -111,7 +111,7 @@ def prep_snap(s,center='bh',Lval=None,rlim=40,physical=True):
         else:
             raise Exception("Center method not recognized: {}. Choose one of 'bh','stars'.".format(center))
         if (Lval is None):
-            Lval = getL(s.part4.pos,s.part4.vel,cent)
+            Lval = getL(s.part4.pos,s.part4.vel,cent,rlim=rlim)
         radii = np.linalg.norm(s.part4.pos-cent,axis=1)
         meanv = np.mean(s.part4.vel[radii < rlim],axis=0)
         for group in s.groups:
@@ -133,7 +133,7 @@ def prep_snap(s,center='bh',Lval=None,rlim=40,physical=True):
         else:
             raise Exception("Center method not recognized: {}. Choose one of 'bh','stars'.".format(center))
         if (Lval is None):
-            Lval = getL(s.part4['pos'],s.part4['vel'],cent)
+            Lval = getL(s.part4['pos'],s.part4['vel'],cent,rlim=rlim)
         
         radii = np.linalg.norm(s.part4['pos']-cent,axis=1)
         meanv = np.mean(s.part4['vel'][radii < rlim],axis=0)
