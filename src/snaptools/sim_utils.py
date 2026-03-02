@@ -4,6 +4,7 @@ from snaptools import simulation
 import gadget.units as u, astropy.units as au, astropy.constants as constants
 from scipy.spatial.transform import Rotation as R
 import arepo
+import snaptools
 
 def make_list(obj):
     if ((type(obj) == list) | (type(obj) == np.ndarray)):
@@ -79,14 +80,27 @@ def rotate(pos,vel,vector,axis):
         return pos
 
 def get_temp(s):
-    xe = s['ne']
-    U = np.array(s['InternalEnergy'])*au.km**2/au.s**2
+    if (type(s) == arepo.loader.Snapshot):
+        xe = s.part0['ne']
+        U = np.array(s.part0['InternalEnergy'])*au.km**2/au.s**2
+        Xh = s.part0['gmet'][:,0]
+    if (type(s) == arepo.loader.PartGroup):
+        xe = s['ne']
+        U = np.array(s['InternalEnergy'])*au.km**2/au.s**2
+        Xh = s['gmet'][:,0]
+    elif (type(s) == snaptools.snapshot_io.SnapHDF5):
+        xe = s.misc['gas']['NE']
+        U = s.misc['gas']['U']*au.km**2/au.s**2
+        Xh = s.misc['gas']['GFM_Metals'][:,0]
+    else:
+        raise Exception("Type of snapshot not recognized: {}".format(type(s)))
+    
+    return _get_temp(xe,U,Xh)
 
-    Xh = 0.76
+def _get_temp(xe,U,Xh):
     gamma = 5./3.
-
-    mu = (1 + Xh /(1-Xh)) / (1 + Xh/(4*(1-Xh)) + xe)*constants.m_p
-    # mu = 4./(1 + 3*Xh + 4*Xh*xe)*constants.m_p.cgs.value
+    # mu = (1 + Xh /(1-Xh)) / (1 + Xh/(4*(1-Xh)) + xe)*constants.m_p
+    mu = 4./(1 + 3*Xh + 4*Xh*xe)*constants.m_p
     temp = (gamma - 1)*U/constants.k_B*mu
 
     return temp.to('K').value
